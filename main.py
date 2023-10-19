@@ -370,10 +370,10 @@ def branch_and_bound(graph):
         # On branch avec v ajouté à la couverture
         G2 = current_graph.copy()
         G2.remove_node(v)
-        for w in list(G2.neighbors(u)):
+        for w in list(G2.neighbors(u)):  # On retire tous les voisins de u qu'on ajoute à la couverture
             G2.remove_node(w)
             current_cover.add(w)
-        G2.remove_node(u)
+        G2.remove_node(u) # On retire u
         stack.append((G2, current_cover | {v}))
 
     return best_cover
