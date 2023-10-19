@@ -109,6 +109,22 @@ def getVerticesDegrees(graph):
         raise TypeError("graph doit être un graphe NetworkX")
     return dict(graph.degree())
 
+def getMaxDegreeVertex(graph):
+    """Renvoie le sommet de degré maximal du graphe
+
+    Paramètres:
+    -
+    graph: networkx.Graph
+        Un graphe NetworkX
+
+    Retour:
+    -
+    Le label du sommet de degré maximal et son degré
+    """
+    if not isinstance(graph, nx.Graph):
+        raise TypeError("graph doit être un graphe NetworkX")
+    return max(graph.degree(), key=lambda x: x[1])
+
 def generateRandomGraph(n, p):
     """Génère un graphe aléatoire à partir de la loi de probabilité de Erdős-Rényi
 
@@ -167,7 +183,7 @@ def algo_glouton(graph):
     C = []
     graph = graph.copy()
     while len(graph.edges()) > 0:
-        v = max(graph.degree(), key=lambda x: x[1])[0]
+        v = getMaxDegreeVertex(graph)[0]
         C.append(v)
         for e in graph.edges():
             if v in e:
@@ -195,7 +211,7 @@ def showGraphs(graph, algs, fs=10, ns=200):
 
     _, axs = plt.subplots(nrows=1, ncols=len(algs), figsize=(10, 5)) # pour avoir deux graphes côte à côte
 
-    colors = iter(['red', 'blue', 'purple', 'orange', 'green', 'brown', 'pink', 'yellow', 'cyan', 'magenta']) # pour avoir une couleur différente pour chaque couverture
+    colors = iter(['red', 'blue', 'magenta', 'orange', 'green', 'brown', 'pink', 'yellow', 'cyan', 'purple']) # pour avoir une couleur différente pour chaque couverture
 
     for i, alg in enumerate(algs):
         if not callable(alg): # vérifie que alg est une fonction
@@ -209,7 +225,7 @@ def showGraphs(graph, algs, fs=10, ns=200):
     i = 0
     while os.path.exists(f'img/graph_{i}.png'): # sauvegarde le graphique dans un fichier png avec un nom unique
         i += 1
-    plt.savefig(f'img/graph_{i}.png')
+    #plt.savefig(f'img/graph_{i}.png')
     plt.show()
 
 def tic():
@@ -247,7 +263,7 @@ def timeAlgo(alg, nMax):
         times.append(tac()) # ajoute le temps d'exécution à la liste
     return times
 
-def showTimes(n, algs):
+def showTimes(n, algs, log=False):
     """Affiche un graphique montrant les temps d'exécution des algorithmes de couverture pour différentes tailles de graphes
 
     Paramètres:
@@ -260,17 +276,20 @@ def showTimes(n, algs):
     if not isinstance(n, int): # vérifie que n est un entier
         raise TypeError("n doit être un entier")
     
-    colors = iter(['red', 'blue', 'purple', 'orange', 'green', 'brown', 'pink', 'yellow', 'cyan', 'magenta']) # pour avoir une couleur différente pour chaque courbe
+    colors = iter(['red', 'blue', 'magenta', 'orange', 'green', 'brown', 'pink', 'yellow', 'cyan', 'purple']) # pour avoir une couleur différente pour chaque courbe
 
     for alg in algs:
         if not callable(alg): # vérifie que alg est une fonction
             raise TypeError(f"{alg.__name__} doit être une fonction")
-        times = timeAlgo(alg, n) # calcule les temps d'exécution pour l'algorithme de couverture
+        if log: times = np.log(timeAlgo(alg, n)) # calcule les temps d'exécution pour l'algorithme de couverture avec une échelle logarithmique
+        else: times = timeAlgo(alg, n) # calcule les temps d'exécution pour l'algorithme de couverture
         plt.plot(range(n//10, n + 1, n//10), times, label=alg.__name__, color=next(colors)) # affiche la courbe des temps d'exécution
-        print(f"{alg.__name__} terminé en {round(sum(times), 2)} secondes")
+        if log: print(f"{alg.__name__} éxécuté en {round(sum(np.exp(times)), 2)} secondes")
+        else: print(f"{alg.__name__} éxécuté en {round(sum(times), 2)} secondes")
 
     plt.xlabel('Nombre de sommets')
-    plt.ylabel('Temps (s)')
+    if log: plt.ylabel('Temps (log(s))')
+    else: plt.ylabel('Temps (s)')
     plt.legend()
 
     i = 0
@@ -280,36 +299,83 @@ def showTimes(n, algs):
     plt.show()
 
 
-def branch_and_bound(graphe):
-    stack = [(graphe, set())]
+def branch_and_bound(graph, C=None):
+    if not graph or not graph.edges():
+        return C or set()
+
+    C = C or set()
+
+    u, v = list(graph.edges())[0] 
+
+    solution1 = branch_and_bound(deleteVertex(graph, u), C | {u})
+    solution2 = branch_and_bound(deleteVertex(graph, v), C | {v})
+
+    return solution1 if len(solution1) < len(solution2) else solution2
+
+
+def branch_and_bound(graph, C=None):
+    """Algorithme de branch and bound pour la couverture de graphe optimale
+    
+    Paramètres:
+    -
+    graph: networkx.Graph
+        Un graphe NetworkX
+        
+    C: set
+        Une couverture partielle du graphe
+    
+    Retour:
+    -
+    best_cover: set
+        Une couverture optimale du graphe"""
+    stack = [(graph.copy(), C or set())]
     best_solution = float('inf')
     best_cover = set()
 
     while stack:
         current_graph, current_cover = stack.pop()
 
-        if len(current_cover) >= best_solution:
+        # Si la solution courante est plus grande que la meilleure solution, on élague
+        if len(current_cover) >= best_solution: 
             continue
+        
+        # Calcul de la borne inférieure
+        m, n = len(current_graph.edges()), len(current_graph.nodes())
+        b1 = np.ceil(m / max(1, getMaxDegreeVertex(current_graph)[1])) 
+        b2 = len(algo_couplage(current_graph)) / 2
+        b3 = (2*n - 1 - np.sqrt(max((2*n - 1)**2 - 8*m, 0))) / 2
+        lower_bound = max(b1, b2, b3)
 
-        if not current_graph or not current_graph.edges():
-            if len(current_cover) < best_solution:
+        # Si toutes les arêtes ont été couvertes ou si la solution courante est plus grande que la meilleure solution
+        if not current_graph.edges() or len(current_cover) + lower_bound >= best_solution:
+            # Si la solution courante est meilleure que la meilleure solution et que toutes les arêtes ont été couvertes
+            if not current_graph.edges() and len(current_cover) < best_solution:
+                # On met à jour la meilleure solution
                 best_solution = len(current_cover)
                 best_cover = current_cover
+            # On élague (dans le cas où toutes les arêtes n'ont pas été couvertes mais que la solution courante est pire que la meilleure solution)
             continue
+        
+        # On choisit un sommet de degré maximal
+        u = max(current_graph, key=current_graph.degree)
+        # On choisit un voisin de u
+        v = next(iter(current_graph.neighbors(u)))
 
-        u, v = list(current_graph.edges())[0]
-
-        G1 = deleteVertex(current_graph.copy(), u)
+        # On branch avec u ajouté à la couverture
+        G1 = current_graph.copy()
+        G1.remove_node(u)
         stack.append((G1, current_cover | {u}))
 
-        G2 = deleteVertex(current_graph.copy(), v)
+        # On branch avec v ajouté à la couverture
+        G2 = current_graph.copy()
+        G2.remove_node(v)
         stack.append((G2, current_cover | {v}))
 
     return best_cover
 
 
 if __name__ == "__main__":
-    g = generateRandomGraph(12,0.2)
+    g = generateRandomGraph(50,1/np.sqrt(50))
     #g = loadGraph('exempleinstance.txt')
     showGraphs(g, [algo_couplage, algo_glouton, branch_and_bound])
-    showTimes(3000, [algo_couplage, algo_glouton])
+    #showTimes(40, [algo_couplage, algo_glouton, branch_and_bound], log=True)
