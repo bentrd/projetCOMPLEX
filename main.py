@@ -42,12 +42,14 @@ def loadGraph(filename):
                 line = lines[-j] 
                 if line[0] == 'S': # si on atteint la ligne "Sommets" on arrête de lire
                     break
-                vertices.add(line[:-1]) # ajoute le sommet à la liste sans le \n
+                vertices.update(line[:-1]) # ajoute le sommet à la liste sans le \n
             break # on arrête de lire les lignes
         edges.append(line) # ajoute l'arête à la liste
         vertices.update(line.split()) # ajoute les sommets de l'arête à la liste
     graph = nx.parse_edgelist(edges, create_using=nx.Graph(), nodetype=int) # crée le graphe à partir de la liste des arêtes
-    graph.add_nodes_from(vertices) # ajoute les sommets manquants au graphe
+    for v in vertices:
+        if int(v) not in graph.nodes():
+            graph.add_node(v)
     return graph
 
 
@@ -123,6 +125,8 @@ def getMaxDegreeVertex(graph):
     """
     if not isinstance(graph, nx.Graph):
         raise TypeError("graph doit être un graphe NetworkX")
+    if len(graph) == 0:
+        return -1, -1
     return max(graph.degree(), key=lambda x: x[1])
 
 def generateRandomGraph(n, p):
@@ -313,22 +317,19 @@ def branch_and_bound(graph, C=None):
     return solution1 if len(solution1) < len(solution2) else solution2
 
 
-def branch_and_bound(graph, C=None):
+def branch_and_bound(graph):
     """Algorithme de branch and bound pour la couverture de graphe optimale
     
     Paramètres:
     -
     graph: networkx.Graph
         Un graphe NetworkX
-        
-    C: set
-        Une couverture partielle du graphe
     
     Retour:
     -
     best_cover: set
         Une couverture optimale du graphe"""
-    stack = [(graph.copy(), C or set())]
+    stack = [(graph.copy(), set())]
     best_solution = float('inf')
     best_cover = set()
 
@@ -357,7 +358,7 @@ def branch_and_bound(graph, C=None):
             continue
         
         # On choisit un sommet de degré maximal
-        u = max(current_graph, key=current_graph.degree)
+        u = getMaxDegreeVertex(current_graph)[0]
         # On choisit un voisin de u
         v = next(iter(current_graph.neighbors(u)))
 
@@ -369,13 +370,17 @@ def branch_and_bound(graph, C=None):
         # On branch avec v ajouté à la couverture
         G2 = current_graph.copy()
         G2.remove_node(v)
+        for w in list(G2.neighbors(u)):
+            G2.remove_node(w)
+            current_cover.add(w)
+        G2.remove_node(u)
         stack.append((G2, current_cover | {v}))
 
     return best_cover
 
 
 if __name__ == "__main__":
-    g = generateRandomGraph(50,1/np.sqrt(50))
+    g = generateRandomGraph(20,0.1)
     #g = loadGraph('exempleinstance.txt')
-    showGraphs(g, [algo_couplage, algo_glouton, branch_and_bound])
-    #showTimes(40, [algo_couplage, algo_glouton, branch_and_bound], log=True)
+    showGraphs(g, [algo_glouton, branch_and_bound])
+    #showTimes(100, [algo_couplage, algo_glouton, branch_and_bound])
