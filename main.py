@@ -303,7 +303,7 @@ def showTimes(n, algs, log=False):
     plt.show()
 
 
-def branch_and_bound(graph, C=None):
+def branch_and_bound_0(graph, C=None):
     if not graph or not graph.edges():
         return C or set()
 
@@ -311,13 +311,13 @@ def branch_and_bound(graph, C=None):
 
     u, v = list(graph.edges())[0] 
 
-    solution1 = branch_and_bound(deleteVertex(graph, u), C | {u})
-    solution2 = branch_and_bound(deleteVertex(graph, v), C | {v})
+    solution1 = branch_and_bound_0(deleteVertex(graph, u), C | {u})
+    solution2 = branch_and_bound_0(deleteVertex(graph, v), C | {v})
 
     return solution1 if len(solution1) < len(solution2) else solution2
 
 
-def branch_and_bound(graph):
+def branch_and_bound_1(graph):
     """Algorithme de branch and bound pour la couverture de graphe optimale
     
     Paramètres:
@@ -357,6 +357,128 @@ def branch_and_bound(graph):
             # On élague (dans le cas où toutes les arêtes n'ont pas été couvertes mais que la solution courante est pire que la meilleure solution)
             continue
         
+        # On choisit un sommet de degré non nul
+        i = 0
+        while current_graph.degree(u:=list(current_graph.nodes())[i]) == 0:
+            i += 1
+        # On choisit un voisin de u
+        v = next(iter(current_graph.neighbors(u)))
+
+        # On branch avec u ajouté à la couverture
+        G1 = current_graph.copy()
+        G1.remove_node(u)
+        stack.append((G1, current_cover | {u}))
+
+        # On branch avec v ajouté à la couverture
+        G2 = current_graph.copy()
+        G2.remove_node(v)
+        stack.append((G2, current_cover | {v}))
+
+    return best_cover
+
+def branch_and_bound_2(graph):
+    """Algorithme de branch and bound pour la couverture de graphe optimale
+    
+    Paramètres:
+    -
+    graph: networkx.Graph
+        Un graphe NetworkX
+    
+    Retour:
+    -
+    best_cover: set
+        Une couverture optimale du graphe"""
+    stack = [(graph.copy(), set())]
+    best_solution = float('inf')
+    best_cover = set()
+
+    while stack:
+        current_graph, current_cover = stack.pop()
+
+        # Si la solution courante est plus grande que la meilleure solution, on élague
+        if len(current_cover) >= best_solution: 
+            continue
+        
+        # Calcul de la borne inférieure
+        m, n = len(current_graph.edges()), len(current_graph.nodes())
+        b1 = np.ceil(m / max(1, getMaxDegreeVertex(current_graph)[1])) 
+        b2 = len(algo_couplage(current_graph)) / 2
+        b3 = (2*n - 1 - np.sqrt(max((2*n - 1)**2 - 8*m, 0))) / 2
+        lower_bound = max(b1, b2, b3)
+
+        # Si toutes les arêtes ont été couvertes ou si la solution courante est plus grande que la meilleure solution
+        if not current_graph.edges() or len(current_cover) + lower_bound >= best_solution:
+            # Si la solution courante est meilleure que la meilleure solution et que toutes les arêtes ont été couvertes
+            if not current_graph.edges() and len(current_cover) < best_solution:
+                # On met à jour la meilleure solution
+                best_solution = len(current_cover)
+                best_cover = current_cover
+            # On élague (dans le cas où toutes les arêtes n'ont pas été couvertes mais que la solution courante est pire que la meilleure solution)
+            continue
+        
+        # On choisit un sommet de degré non nul
+        i = 0
+        while current_graph.degree(u:=list(current_graph.nodes())[i]) == 0:
+            i += 1
+        # On choisit un voisin de u
+        v = next(iter(current_graph.neighbors(u)))
+
+        # On branch avec u ajouté à la couverture
+        G1 = current_graph.copy()
+        G1.remove_node(u)
+        stack.append((G1, current_cover | {u}))
+
+        # On branch avec v ajouté à la couverture
+        G2 = current_graph.copy()
+        G2.remove_node(v)
+        for w in list(G2.neighbors(u)):  # On retire tous les voisins de u qu'on ajoute à la couverture
+            G2.remove_node(w)
+            current_cover.add(w)
+        G2.remove_node(u) # On retire u
+        stack.append((G2, current_cover | {v}))
+
+    return best_cover
+
+def branch_and_bound_3(graph):
+    """Algorithme de branch and bound pour la couverture de graphe optimale
+    
+    Paramètres:
+    -
+    graph: networkx.Graph
+        Un graphe NetworkX
+    
+    Retour:
+    -
+    best_cover: set
+        Une couverture optimale du graphe"""
+    stack = [(graph.copy(), set())]
+    best_solution = float('inf')
+    best_cover = set()
+
+    while stack:
+        current_graph, current_cover = stack.pop()
+
+        # Si la solution courante est plus grande que la meilleure solution, on élague
+        if len(current_cover) >= best_solution: 
+            continue
+        
+        # Calcul de la borne inférieure
+        m, n = len(current_graph.edges()), len(current_graph.nodes())
+        b1 = np.ceil(m / max(1, getMaxDegreeVertex(current_graph)[1])) 
+        b2 = len(algo_glouton(current_graph)) / 2
+        b3 = (2*n - 1 - np.sqrt(max((2*n - 1)**2 - 8*m, 0))) / 2
+        lower_bound = max(b1, b2, b3)
+
+        # Si toutes les arêtes ont été couvertes ou si la solution courante est plus grande que la meilleure solution
+        if not current_graph.edges() or len(current_cover) + lower_bound >= best_solution:
+            # Si la solution courante est meilleure que la meilleure solution et que toutes les arêtes ont été couvertes
+            if not current_graph.edges() and len(current_cover) < best_solution:
+                # On met à jour la meilleure solution
+                best_solution = len(current_cover)
+                best_cover = current_cover
+            # On élague (dans le cas où toutes les arêtes n'ont pas été couvertes mais que la solution courante est pire que la meilleure solution)
+            continue
+        
         # On choisit un sommet de degré maximal
         u = getMaxDegreeVertex(current_graph)[0]
         # On choisit un voisin de u
@@ -378,9 +500,27 @@ def branch_and_bound(graph):
 
     return best_cover
 
+def rapportApproximation(n, algo, iter=100):
+    if not isinstance(n, int) and not isinstance(algo, callable):
+        raise TypeError("n doit être un entier et algo doit être une fonction")
+    rapports = []
+    for _ in range(iter):
+        g = generateRandomGraph(n, 1/np.sqrt(n))
+        rapports.append(len(algo(g)) / len(branch_and_bound_3(g)))
+    return rapports
+
 
 if __name__ == "__main__":
-    g = generateRandomGraph(20,0.1)
+    g = generateRandomGraph(25,1/5)
     #g = loadGraph('exempleinstance.txt')
-    showGraphs(g, [algo_glouton, branch_and_bound])
-    #showTimes(100, [algo_couplage, algo_glouton, branch_and_bound])
+    #showGraphs(g, [algo_glouton, branch_and_bound_2])
+    #showTimes(100, [algo_couplage, algo_glouton, branch_and_bound_3], log=True)
+    #showTimes(25, [branch_and_bound_3, branch_and_bound_2, branch_and_bound_1, branch_and_bound_0], log=True)
+    #showTimes(25, [branch_and_bound_1, branch_and_bound_0])
+    #showTimes(40, [branch_and_bound_3, branch_and_bound_2, branch_and_bound_1], log=True)
+    #showTimes(80, [branch_and_bound_2, branch_and_bound_3])
+    for alg in (algo_couplage, algo_glouton):
+        print(f"{alg.__name__}:")
+        for n in range(10,51,10):
+            rapports = rapportApproximation(n, alg)
+            print("\tn = {}, moyenne = {}, pire = {}".format(n, round(np.mean(rapports),2), round(np.max(rapports),2)))
