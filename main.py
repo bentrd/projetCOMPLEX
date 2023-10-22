@@ -53,14 +53,14 @@ def loadGraph(filename):
     return graph
 
 
-def deleteVertex(graph, vertex):
+def deleteVertex(graph, v):
     """Supprime un sommet du graphe
 
     Paramètres:
     -
     graph: networkx.Graph
         Un graphe NetworkX
-    vertex: int
+    v: int
         Le label d'un sommet du graphe
     
     Retour:
@@ -71,7 +71,7 @@ def deleteVertex(graph, vertex):
     if not isinstance(graph, nx.Graph):
         raise TypeError("graph doit être un graphe NetworkX")
     graph_copy = graph.copy()
-    graph_copy.remove_node(vertex)
+    graph_copy.remove_node(v)
     return graph_copy
 
 def deleteVertices(graph, vertices):
@@ -129,6 +129,8 @@ def getMaxDegreeVertex(graph):
         return -1, -1
     return max(graph.degree(), key=lambda x: x[1])
 
+import random
+
 def generateRandomGraph(n, p):
     """Génère un graphe aléatoire à partir de la loi de probabilité de Erdős-Rényi
 
@@ -145,7 +147,14 @@ def generateRandomGraph(n, p):
     """
     if p < 0 or p > 1 or n < 0:
         raise ValueError("n doit être positif et p doit être entre 0 et 1 exclus")
-    return nx.fast_gnp_random_graph(n, p)
+    graph = nx.Graph()
+    for i in range(n):
+        graph.add_node(i)
+    for i in range(n):
+        for j in range(i+1, n):
+            if random.random() < p:
+                graph.add_edge(i, j)
+    return graph
 
 def algo_couplage(graph):
     """Trouve une couverture du graphe à partir d'un couplage
@@ -301,7 +310,6 @@ def showTimes(n, algs, log=False):
         i += 1
     plt.savefig(f'img/times_{i}.png')
     plt.show()
-
 
 def branch_and_bound_0(graph, C=None):
     if not graph or not graph.edges():
@@ -511,16 +519,18 @@ def rapportApproximation(n, algo, iter=100):
 
 
 if __name__ == "__main__":
-    g = generateRandomGraph(25,1/5)
-    #g = loadGraph('exempleinstance.txt')
-    #showGraphs(g, [algo_glouton, branch_and_bound_2])
+    #g = generateRandomGraph(8, 0.5)
+    g = loadGraph('instance.txt')
+    showTimes(25, [algo_couplage, algo_glouton, branch_and_bound_0])
+    showGraphs(g, [algo_couplage, algo_glouton, branch_and_bound_3])
     #showTimes(100, [algo_couplage, algo_glouton, branch_and_bound_3], log=True)
     #showTimes(25, [branch_and_bound_3, branch_and_bound_2, branch_and_bound_1, branch_and_bound_0], log=True)
     #showTimes(25, [branch_and_bound_1, branch_and_bound_0])
     #showTimes(40, [branch_and_bound_3, branch_and_bound_2, branch_and_bound_1], log=True)
     #showTimes(80, [branch_and_bound_2, branch_and_bound_3])
-    for alg in (algo_couplage, algo_glouton):
+    """for alg in (algo_couplage, algo_glouton):
         print(f"{alg.__name__}:")
         for n in range(10,51,10):
             rapports = rapportApproximation(n, alg)
-            print("\tn = {}, moyenne = {}, pire = {}".format(n, round(np.mean(rapports),2), round(np.max(rapports),2)))
+            print("\tn = {}, moyenne = {}, pire = {}".format(n, round(np.mean(rapports),2), round(np.max(rapports),2)))"""
+    
